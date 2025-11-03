@@ -10,6 +10,8 @@ interface SettingsModalProps {
     setAspectRatio: (ratio: AspectRatio) => void;
     imageResolution: ImageResolution;
     setImageResolution: (resolution: ImageResolution) => void;
+    isHistorySavingEnabled: boolean;
+    setIsHistorySavingEnabled: (enabled: boolean) => void;
 }
 
 const aspectRatios: { value: AspectRatio; label: string }[] = [
@@ -34,17 +36,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     aspectRatio, 
     setAspectRatio, 
     imageResolution, 
-    setImageResolution 
+    setImageResolution,
+    isHistorySavingEnabled,
+    setIsHistorySavingEnabled
 }) => {
     const [localAspectRatio, setLocalAspectRatio] = useState<AspectRatio>(aspectRatio);
     const [localImageResolution, setLocalImageResolution] = useState<ImageResolution>(imageResolution);
+    const [localIsHistorySavingEnabled, setLocalIsHistorySavingEnabled] = useState(isHistorySavingEnabled);
 
     useEffect(() => {
         if (isOpen) {
             setLocalAspectRatio(aspectRatio);
             setLocalImageResolution(imageResolution);
+            setLocalIsHistorySavingEnabled(isHistorySavingEnabled);
         }
-    }, [isOpen, aspectRatio, imageResolution]);
+    }, [isOpen, aspectRatio, imageResolution, isHistorySavingEnabled]);
 
     if (!isOpen) return null;
 
@@ -58,6 +64,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const handleSave = () => {
         setAspectRatio(localAspectRatio);
         setImageResolution(localImageResolution);
+        setIsHistorySavingEnabled(localIsHistorySavingEnabled);
         onClose();
     };
 
@@ -113,6 +120,26 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                      <div>
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Manage Data</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+                            Your generation history and settings are saved in your browser's local storage.
+                        </p>
+                        <div className="mt-2 flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
+                            <div>
+                                <p className="font-medium text-gray-900 dark:text-gray-100">Enable History</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Save new generations to the history panel.</p>
+                            </div>
+                            <button
+                                onClick={() => setLocalIsHistorySavingEnabled(!localIsHistorySavingEnabled)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${localIsHistorySavingEnabled ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-600'}`}
+                                role="switch"
+                                aria-checked={localIsHistorySavingEnabled}
+                            >
+                                <span className="sr-only">Enable History</span>
+                                <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${localIsHistorySavingEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+                                />
+                            </button>
+                        </div>
                         <div className="mt-2 flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
                             <div>
                                 <p className="font-medium text-gray-900 dark:text-gray-100">Clear History</p>

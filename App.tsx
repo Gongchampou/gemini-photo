@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Auth from './components/Auth';
 import Header from './components/Header';
 import ImageGenerator from './components/ImageGenerator';
 import HistoryPanel from './components/HistoryPanel';
 import SettingsModal from './components/SettingsModal';
-import type { User, Theme, ImageGeneration, AspectRatio, ImageResolution, InputImage } from './types';
+import type { Theme, Conversation, Message, AspectRatio, ImageResolution, InputImage } from './types';
 import { generateImage, generatePromptIdea, editImage } from './services/geminiService';
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const storedTheme = window.localStorage.getItem('theme') as Theme;
@@ -18,66 +16,101 @@ const App: React.FC = () => {
     return 'light';
   });
 
-  const [generations, setGenerations] = useState<ImageGeneration[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    try {
+        const item = window.localStorage.getItem('conversationHistory');
+        if (item) {
+            const parsed = JSON.parse(item);
+            // Revive dates and nested message dates
+            return parsed.map((convo: any) => ({
+                ...convo,
+                timestamp: new Date(convo.timestamp),
+                messages: convo.messages.map((msg: any) => ({ ...msg, timestamp: new Date(msg.timestamp) }))
+            }));
+        }
+    } catch (error) {
+        console.error("Error reading history from localStorage", error);
+    }
+    return [];
+  });
+  
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  
   const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(true);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [imageResolution, setImageResolution] = useState<ImageResolution>('1080p');
+  const [isHistorySavingEnabled, setIsHistorySavingEnabled] = useState(true);
 
   // State for ImageGenerator
   const [prompt, setPrompt] = useState('');
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [inputImage, setInputImage] = useState<InputImage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGettingIdea, setIsGettingIdea] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeMessages = conversations.find(c => c.id === activeConversationId)?.messages || [];
+
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
-  
-  const handleLogout = () => {
-    setUser(null);
-    setGenerations([]);
-    setPrompt('');
-    setGeneratedImage(null);
-    setInputImage(null);
-    setError(null);
-  };
 
-  const handleAuthSuccess = (authedUser: User) => {
-    setUser(authedUser);
-  };
-
-  const handleImageGenerated = useCallback((newGeneration: Omit<ImageGeneration, 'id'>) => {
-    setGenerations(prev => [
-      { ...newGeneration, id: new Date().toISOString() + Math.random() },
-      ...prev
-    ]);
-  }, []);
+  useEffect(() => {
+    if (!isHistorySavingEnabled) return;
+    try {
+        window.localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+    } catch (error) {
+        console.error("Error saving history to localStorage", error);
+    }
+  }, [conversations, isHistorySavingEnabled]);
   
   const handleGenerate = useCallback(async () => {
     if (!prompt || isLoading) return;
     setIsLoading(true);
     setError(null);
-    setGeneratedImage(null);
+    setPrompt('');
+
+    const lastImageUrl = activeMessages.slice().reverse().find(m => m.role === 'model' && m.imageUrl)?.imageUrl;
+
     try {
         let imageUrl: string;
-        if (inputImage) {
-            imageUrl = await editImage(prompt, inputImage.base64, inputImage.mimeType);
+        const baseImageForEdit = lastImageUrl || (inputImage ? `data:${inputImage.mimeType};base64,${inputImage.base64}` : null);
+
+        if (baseImageForEdit) {
+            const parts = baseImageForEdit.split(',');
+            const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+            const base64Data = parts[1];
+            imageUrl = await editImage(prompt, base64Data, mimeType);
         } else {
             imageUrl = await generateImage(prompt, aspectRatio, imageResolution);
         }
-        setGeneratedImage(imageUrl);
-        handleImageGenerated({ prompt, imageUrl, timestamp: new Date() });
+        
+        const userMessage: Message = { id: `user-${Date.now()}`, role: 'user', prompt, timestamp: new Date() };
+        const modelMessage: Message = { id: `model-${Date.now()}`, role: 'model', imageUrl, timestamp: new Date() };
+
+        if (activeConversationId) {
+            setConversations(convos => convos.map(c => 
+                c.id === activeConversationId ? { ...c, messages: [...c.messages, userMessage, modelMessage] } : c
+            ));
+        } else {
+            const newConversation: Conversation = {
+                id: `convo-${Date.now()}`,
+                title: prompt,
+                messages: [userMessage, modelMessage],
+                timestamp: new Date()
+            };
+            setConversations(convos => [newConversation, ...convos]);
+            setActiveConversationId(newConversation.id);
+        }
+        
         setInputImage(null);
     } catch (err: any) {
         setError(err.message || 'An unknown error occurred.');
     } finally {
         setIsLoading(false);
     }
-  }, [prompt, isLoading, handleImageGenerated, aspectRatio, imageResolution, inputImage]);
+}, [prompt, isLoading, activeConversationId, activeMessages, aspectRatio, imageResolution, inputImage, conversations]);
 
   const handleGetIdea = useCallback(async () => {
       setIsGettingIdea(true);
@@ -92,36 +125,57 @@ const App: React.FC = () => {
       }
   }, []);
 
-  const handleSelectGeneration = (generation: ImageGeneration) => {
-      setPrompt(generation.prompt);
-      setGeneratedImage(generation.imageUrl);
+  const handleSelectConversation = (conversation: Conversation) => {
+      setActiveConversationId(conversation.id);
+      setPrompt('');
       setInputImage(null);
       setError(null);
-      if (window.innerWidth < 768) { // collapse on mobile after selection
+      if (window.innerWidth < 768) {
         setIsHistoryCollapsed(true);
       }
   };
 
+  const handleDeleteConversation = (idToDelete: string) => {
+    setConversations(convos => convos.filter(c => c.id !== idToDelete));
+    if (activeConversationId === idToDelete) {
+        setActiveConversationId(null);
+        setPrompt('');
+        setInputImage(null);
+        setError(null);
+    }
+  };
+
   const handleClearHistory = () => {
-    setGenerations([]);
+    setConversations([]);
+    setActiveConversationId(null);
+    try {
+        window.localStorage.removeItem('conversationHistory');
+    } catch (error) {
+        console.error("Error clearing history from localStorage", error);
+    }
   }
 
-  if (!user) {
-    return <Auth onAuthSuccess={handleAuthSuccess} />;
-  }
+  const handleNewConversation = () => {
+    setActiveConversationId(null);
+    setPrompt('');
+    setInputImage(null);
+    setError(null);
+  };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-200 dark:bg-black text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
         <Header 
             theme={theme} 
             setTheme={setTheme} 
-            onLogout={handleLogout}
             onToggleSettings={() => setIsSettingsVisible(!isSettingsVisible)}
+            onNewConversation={handleNewConversation}
         />
         <div className="flex-grow flex overflow-hidden">
             <HistoryPanel 
-                generations={generations} 
-                onSelectGeneration={handleSelectGeneration}
+                conversations={conversations} 
+                onSelectConversation={handleSelectConversation}
+                onDeleteConversation={handleDeleteConversation}
+                activeConversationId={activeConversationId}
                 isCollapsed={isHistoryCollapsed}
                 onToggleCollapse={() => setIsHistoryCollapsed(!isHistoryCollapsed)}
             />
@@ -129,7 +183,7 @@ const App: React.FC = () => {
                 <ImageGenerator 
                     prompt={prompt}
                     setPrompt={setPrompt}
-                    generatedImage={generatedImage}
+                    messages={activeMessages}
                     inputImage={inputImage}
                     setInputImage={setInputImage}
                     isLoading={isLoading}
@@ -149,6 +203,8 @@ const App: React.FC = () => {
             setAspectRatio={setAspectRatio}
             imageResolution={imageResolution}
             setImageResolution={setImageResolution}
+            isHistorySavingEnabled={isHistorySavingEnabled}
+            setIsHistorySavingEnabled={setIsHistorySavingEnabled}
         />
     </div>
   );

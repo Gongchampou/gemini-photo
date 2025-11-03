@@ -1,15 +1,15 @@
 import React from 'react';
 import type { Theme } from '../types';
-import { SunIcon, MoonIcon, LogoutIcon, CogIcon } from './IconComponents';
+import { SunIcon, MoonIcon, CogIcon, PlusIcon } from './IconComponents';
 
 interface HeaderProps {
     theme: Theme;
     setTheme: (theme: Theme) => void;
-    onLogout: () => void;
     onToggleSettings: () => void;
+    onNewConversation: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ theme, setTheme, onLogout, onToggleSettings }) => {
+const Header: React.FC<HeaderProps> = ({ theme, setTheme, onToggleSettings, onNewConversation }) => {
     const toggleTheme = () => {
         setTheme(theme === 'light' ? 'dark' : 'light');
     };
@@ -20,6 +20,13 @@ const Header: React.FC<HeaderProps> = ({ theme, setTheme, onLogout, onToggleSett
                 Pixel Palette
             </div>
             <div className="flex items-center space-x-2 md:space-x-4">
+                <button
+                    onClick={onNewConversation}
+                    className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    title="New Conversation"
+                >
+                    <PlusIcon className="h-6 w-6" />
+                </button>
                 <button
                     onClick={toggleTheme}
                     className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -33,13 +40,6 @@ const Header: React.FC<HeaderProps> = ({ theme, setTheme, onLogout, onToggleSett
                     title="Settings"
                 >
                     <CogIcon className="h-6 w-6" />
-                </button>
-                <button
-                    onClick={onLogout}
-                    className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                    title="Logout"
-                >
-                    <LogoutIcon className="h-6 w-6" />
                 </button>
             </div>
         </header>

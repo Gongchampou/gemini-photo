@@ -1,12 +1,21 @@
-export interface User {
-  email: string;
+export interface Message {
+  id: string;
+  role: 'user' | 'model';
+  prompt?: string; // For user role
+  imageUrl?: string; // For model role
+  timestamp: Date;
 }
 
-export interface ImageGeneration {
+export interface Conversation {
   id: string;
-  prompt: string;
-  imageUrl: string;
+  title: string;
+  messages: Message[];
   timestamp: Date;
+}
+
+// FIX: Added missing User interface for authentication component.
+export interface User {
+  email: string;
 }
 
 export type Theme = 'light' | 'dark';

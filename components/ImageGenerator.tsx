@@ -1,11 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { WandIcon, PaperAirplaneIcon, DownloadIcon, ImageIcon, XIcon } from './IconComponents';
-import type { InputImage } from '../types';
+import type { InputImage, Message } from '../types';
 
 interface ImageGeneratorProps {
     prompt: string;
     setPrompt: (prompt: string) => void;
-    generatedImage: string | null;
+    messages: Message[];
     inputImage: InputImage | null;
     setInputImage: (image: InputImage | null) => void;
     isLoading: boolean;
@@ -16,16 +16,18 @@ interface ImageGeneratorProps {
 }
 
 const LoadingSkeleton = () => (
-    <div className="aspect-[16/9] w-full bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse flex items-center justify-center p-4">
-        <div className="text-center">
-            <h3 className="text-lg font-semibold text-gray-500 dark:text-gray-400">Conjuring Pixels...</h3>
-            <p className="text-sm text-gray-400 dark:text-gray-500">The AI is painting your vision. This can take a moment.</p>
+    <div className="w-full lg:w-3/4">
+        <div className="aspect-[16/9] w-full bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse flex items-center justify-center p-4">
+            <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-500 dark:text-gray-400">Conjuring Pixels...</h3>
+                <p className="text-sm text-gray-400 dark:text-gray-500">The AI is painting your vision. This can take a moment.</p>
+            </div>
         </div>
     </div>
 );
 
 const WelcomePlaceholder = () => (
-    <div className="text-center p-8">
+    <div className="text-center p-8 self-center">
         <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500 mb-4">
             Pixel Palette AI
         </h1>
@@ -37,9 +39,14 @@ const WelcomePlaceholder = () => (
 
 
 const ImageGenerator: React.FC<ImageGeneratorProps> = ({ 
-    prompt, setPrompt, generatedImage, inputImage, setInputImage, isLoading, isGettingIdea, error, handleGenerate, handleGetIdea 
+    prompt, setPrompt, messages, inputImage, setInputImage, isLoading, isGettingIdea, error, handleGenerate, handleGetIdea 
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isLoading]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -61,31 +68,59 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({
         fileInputRef.current?.click();
     };
     
+    const canGetIdea = !inputImage && messages.length === 0;
+
+    const getPlaceholderText = () => {
+        if (messages.length > 0) {
+            return "Describe how you want to refine the image...";
+        }
+        if (inputImage) {
+            return "Describe the edits you want to make...";
+        }
+        return "A futuristic city skyline at sunset, anime style...";
+    };
+    
     return (
         <div className="flex flex-col h-full w-full bg-white dark:bg-gray-800">
-            <main className="flex-grow flex items-center justify-center overflow-y-auto p-4 md:p-8">
-                <div className="w-full max-w-4xl">
-                    {isLoading ? (
-                        <LoadingSkeleton />
-                    ) : error ? (
-                        <div className="aspect-[16/9] w-full bg-red-100 dark:bg-red-900/50 border border-red-500 text-red-700 dark:text-red-300 rounded-xl flex items-center justify-center p-4">
+            <main className="flex-grow overflow-y-auto p-4 md:p-8">
+                <div className="w-full max-w-4xl mx-auto flex flex-col space-y-6">
+                    {messages.length === 0 && !isLoading && <WelcomePlaceholder />}
+                    
+                    {messages.map(message => (
+                        <div key={message.id}>
+                            {message.role === 'user' && (
+                                <div className="flex justify-end">
+                                    <div className="bg-purple-600 text-white p-3 rounded-xl max-w-lg shadow-md animate-fade-in-right">
+                                        {message.prompt}
+                                    </div>
+                                </div>
+                            )}
+                            {message.role === 'model' && message.imageUrl && (
+                                <div className="flex justify-start">
+                                    <div className="relative group animate-fade-in-left w-full lg:w-3/4">
+                                        <img src={message.imageUrl} alt={message.prompt || 'Generated image'} className="aspect-[16/9] w-full object-contain rounded-xl" />
+                                        <a
+                                            href={message.imageUrl}
+                                            download={`pixel-palette-ai-${message.id}.jpeg`}
+                                            className="absolute top-4 right-4 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition-all transform scale-0 group-hover:scale-100 duration-200"
+                                            title="Download Image"
+                                        >
+                                            <DownloadIcon className="h-6 w-6" />
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    
+                    {isLoading && <LoadingSkeleton />}
+                    
+                    {error && (
+                         <div className="bg-red-100 dark:bg-red-900/50 border border-red-500 text-red-700 dark:text-red-300 rounded-xl flex items-center justify-center p-4">
                             <p><strong>Error:</strong> {error}</p>
                         </div>
-                    ) : generatedImage ? (
-                        <div className="relative group animate-fade-in">
-                             <img src={generatedImage} alt={prompt} className="aspect-[16/9] w-full object-contain rounded-xl" />
-                             <a
-                                href={generatedImage}
-                                download="pixel-palette-ai.jpeg"
-                                className="absolute top-4 right-4 bg-black/50 text-white p-3 rounded-full hover:bg-black/75 transition-all transform scale-0 group-hover:scale-100 duration-200"
-                                title="Download Image"
-                            >
-                                <DownloadIcon className="h-6 w-6" />
-                            </a>
-                        </div>
-                    ) : (
-                        <WelcomePlaceholder />
                     )}
+                     <div ref={messagesEndRef} />
                 </div>
             </main>
 
@@ -133,7 +168,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({
                                         handleGenerate();
                                     }
                                 }}
-                                placeholder={inputImage ? "Describe the edits you want to make..." : "A futuristic city skyline at sunset, anime style..."}
+                                placeholder={getPlaceholderText()}
                                 className="w-full p-4 pr-12 text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 border-2 border-transparent focus:border-purple-500 focus:ring-0 rounded-[10px] resize-none transition-all leading-snug"
                                 rows={1}
                                 style={{ minHeight: '52px', maxHeight: '200px' }}
@@ -146,9 +181,9 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({
                             />
                             <button
                                 onClick={handleGetIdea}
-                                disabled={isLoading || isGettingIdea || !!inputImage}
+                                disabled={isLoading || isGettingIdea || !canGetIdea}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                title="Get a prompt idea (not available when editing)"
+                                title="Get a prompt idea (only for new conversations)"
                             >
                                 <WandIcon className={`h-6 w-6 ${isGettingIdea ? 'animate-spin' : ''}`} />
                             </button>
@@ -157,7 +192,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({
                             onClick={handleGenerate}
                             disabled={!prompt || isLoading}
                             className="flex items-center justify-center self-stretch w-12 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-purple-400 dark:disabled:bg-purple-800 disabled:cursor-not-allowed transition-all transform hover:scale-105"
-                            title={inputImage ? "Edit Image" : "Generate Image"}
+                            title={messages.length > 0 || inputImage ? "Refine Image" : "Generate Image"}
                         >
                             <PaperAirplaneIcon className="h-6 w-6" />
                         </button>
