@@ -13,11 +13,6 @@ export interface Conversation {
   timestamp: Date;
 }
 
-// FIX: Added missing User interface for authentication component.
-export interface User {
-  email: string;
-}
-
 export type Theme = 'light' | 'dark';
 
 export type AspectRatio = '16:9' | '1:1' | '9:16' | '4:3' | '3:4';

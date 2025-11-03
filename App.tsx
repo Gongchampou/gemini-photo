@@ -110,7 +110,7 @@ const App: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
-}, [prompt, isLoading, activeConversationId, activeMessages, aspectRatio, imageResolution, inputImage, conversations]);
+}, [prompt, isLoading, activeConversationId, activeMessages, aspectRatio, imageResolution, inputImage]);
 
   const handleGetIdea = useCallback(async () => {
       setIsGettingIdea(true);
@@ -148,11 +148,6 @@ const App: React.FC = () => {
   const handleClearHistory = () => {
     setConversations([]);
     setActiveConversationId(null);
-    try {
-        window.localStorage.removeItem('conversationHistory');
-    } catch (error) {
-        console.error("Error clearing history from localStorage", error);
-    }
   }
 
   const handleNewConversation = () => {
